@@ -1,0 +1,7 @@
+export(jwdid)
+export(estat)
+export(plot.jwdid_estat)
+S3method(plot,jwdid_estat)
+S3method(print,jwdid_estat)
+importFrom(graphics,plot)
+importFrom(stats,as.formula)

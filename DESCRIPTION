@@ -1,0 +1,19 @@
+Package: jwdid.r
+Title: Extended Two-Way Fixed Effects Difference-in-Differences with PPML
+Version: 0.1.0
+Authors@R: person("Yutaro", "Kimata", role = c("aut", "cre"), email = "mocaboo1@gmail.com")
+Description: An unofficial R implementation of the PPML path of the Stata
+    command 'jwdid'. Estimates staggered difference-in-differences models using
+    Poisson pseudo-maximum likelihood with fixed effects through 'fixest'.
+    Implements treatment-cell construction and average treatment effect
+    aggregation following the Stata command 'jwdid', including gravity
+    specifications with dyad and exporter-time and importer-time fixed effects.
+    Provides clustered delta-method inference and event-study plots.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.0.0)
+Imports:
+    fixest (>= 0.14.1),
+    graphics,
+    stats,
+    utils
