@@ -30,6 +30,9 @@
 #'   formula.
 #' @param cluster One-sided clustering formula, such as
 #'   `~ exporter + importer`. Defaults to the unit identifier.
+#' @param se Standard errors: the clustered sandwich (`standard`), or the
+#'   sandwich with each unit's residuals corrected for their leverage
+#'   (`corrected`), which requires clustering by the unit identifier.
 #' @param ... Further arguments to [fixest::fepois()], such as `glm.tol`.
 #'
 #' @details
@@ -59,8 +62,9 @@ jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
                   never = FALSE, anticipation = 1L,
                   hettype = c("timecohort", "time", "cohort", "event", "twfe"),
                   data, subset = NULL, weights = NULL, offset = NULL,
-                  cluster = NULL, ...) {
+                  cluster = NULL, se = c("standard", "corrected"), ...) {
   hettype <- match.arg(hettype)
+  se <- match.arg(se)
   if (!is.numeric(anticipation) || length(anticipation) != 1L || is.na(anticipation) ||
     anticipation < 1 || anticipation != round(anticipation)) {
     stop("anticipation must be a positive integer.")
@@ -93,7 +97,7 @@ jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
 
   structure(
     list(
-      coefficients = stats::coef(fit), vcov = jw_vcov(fit, d, design), fixest = fit,
+      coefficients = stats::coef(fit), vcov = jw_vcov(fit, d, design, se), fixest = fit,
       data = d, design = design, never = never, hettype = hettype,
       gap = timing$gap, anticipation = anticipation, separated = dropped,
       call = match.call()

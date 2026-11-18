@@ -92,3 +92,28 @@ test_that("tables print compactly and plot", {
     expect_identical(plot(result), result)
   }
 })
+
+test_that("corrected standard errors scale unit residuals by their leverage", {
+  fit <- jwdid(trade, exporter^importer, year, first_year, fevar = ~ exporter^year + importer^year,
+    never = TRUE, data = gravity)
+  corrected <- jwdid(trade, exporter^importer, year, first_year, fevar = ~ exporter^year + importer^year,
+    never = TRUE, data = gravity, se = "corrected")
+  expect_equal(coef(corrected), coef(fit))
+  expect_true(all(diag(vcov(corrected)) > diag(vcov(fit))))
+
+  d <- fit$data
+  lambda <- fitted(fit) * d$.jw_w
+  unit <- fixest::to_integer(d$.jw_id)
+  pinv <- function(a) with(svd(a), v[, d > max(d) * 1e-10] %*% (t(u[, d > max(d) * 1e-10]) / d[d > max(d) * 1e-10]))
+  project <- function(a) a %*% pinv(crossprod(a, a * lambda)) %*% t(a * lambda)
+  x <- jw_design_matrix(d, names(coef(fit)), fit$design)
+  z <- cbind(as.matrix(x), stats::model.matrix(~ factor(.jw_t) + factor(.jw_fe1) + factor(.jw_fe2) - 1, d))
+  z <- z - project(stats::model.matrix(~ factor(unit) - 1)) %*% z
+  hat <- (lambda * z) %*% pinv(crossprod(z, z * lambda)) %*% t(z)
+  e <- stats::residuals(fit$fixest, type = "response")
+  expected <- numeric(length(e))
+  for (g in split(seq_along(unit), unit)) expected[g] <- pinv(diag(length(g)) - hat[g, g]) %*% e[g]
+  expect_equal(leverage_residuals(fit$fixest, d, x)$residual, expected, tolerance = 1e-8)
+  expect_error(jwdid(trade, exporter^importer, year, first_year, never = TRUE, data = gravity,
+    cluster = ~exporter, se = "corrected"), "unit identifier")
+})

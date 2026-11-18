@@ -1,7 +1,7 @@
 # Separation: observations with y = 0 whose conditional mean the model can
 # drive to zero, so the PPML estimate does not exist. Each pass drops zero-sum
-# fixed-effect groups, then runs the ReLU check of Correia, Guimaraes and
-# Zylkin; passes repeat until nothing more separates.
+# fixed-effect groups, then runs the ReLU check; passes repeat until nothing
+# more separates.
 
 jw_separation <- function(d, design) {
   separated <- logical(nrow(d))

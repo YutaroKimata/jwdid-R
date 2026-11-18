@@ -2,7 +2,7 @@
 # absorbing fixed effects. Effects on the outcome scale depend on that
 # intercept, so their delta-method variances need its covariances.
 
-jw_vcov <- function(fit, d, design) {
+jw_vcov <- function(fit, d, design, se = "standard") {
   b <- stats::coef(fit)
   v <- stats::vcov(fit)
   x <- jw_design_matrix(d, names(b), design)
@@ -13,6 +13,7 @@ jw_vcov <- function(fit, d, design) {
   residual <- stats::residuals(fit, type = "response") * d$.jw_w / sum(q)
   scores <- fixest::estfun(fit)
   bread <- fixest::bread(fit) / stats::nobs(fit)
+  if (se == "corrected") return(corrected_vcov(fit, d, x, xm, sum(q), clusters, bread))
   cross <- numeric(length(b))
   variance <- 0
   # Inclusion-exclusion over cluster intersections, as in multiway clustering.
@@ -35,6 +36,32 @@ jw_vcov <- function(fit, d, design) {
   )
   if (length(clusters) > 1L) joint <- clip_negative(joint, column_scales(x))
   joint
+}
+
+# The same joint covariance with one factor of each outer product built from
+# leverage-corrected residuals, symmetrized.
+corrected_vcov <- function(fit, d, x, xm, total, clusters, bread) {
+  unit <- fixest::to_integer(d$.jw_id)
+  if (length(clusters) != 1L || max(clusters[[1]]) != max(unit) ||
+    any(tapply(clusters[[1]], unit, function(g) length(unique(g))) != 1L)) {
+    stop("Corrected standard errors require clustering by the unit identifier.")
+  }
+  lev <- leverage_residuals(fit, d, x)
+  e <- stats::residuals(fit, type = "response")
+  s <- rowsum(lev$demeaned * (d$.jw_w * e), unit, reorder = FALSE)
+  sc <- rowsum(lev$demeaned * (d$.jw_w * lev$residual), unit, reorder = FALSE)
+  r <- drop(rowsum(e * d$.jw_w / total, unit, reorder = FALSE))
+  rc <- drop(rowsum(lev$residual * d$.jw_w / total, unit, reorder = FALSE))
+  size <- max(unit) / (max(unit) - 1L)
+  v <- bread %*% ((crossprod(sc, s) + crossprod(s, sc)) / 2) %*% bread * size
+  cross <- drop(crossprod(bread, (crossprod(sc, r) + crossprod(s, rc)) / 2)) * size
+  vx <- drop(v %*% xm)
+  covariance <- cross - vx
+  dimnames(v) <- list(names(stats::coef(fit)), names(stats::coef(fit)))
+  rbind(
+    cbind(v, `_cons` = covariance),
+    `_cons` = c(covariance, sum(rc * r) * size - 2 * sum(xm * cross) + sum(xm * vx))
+  )
 }
 
 # Multiway covariances can be indefinite; clip negative eigenvalues of the
