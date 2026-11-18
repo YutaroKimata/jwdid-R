@@ -20,3 +20,17 @@ test_that("covariates do not hide base-period separation", {
   expect_true(all(which(zero) %in% fit$separated))
   expect_lt(max(abs(coef(fit))), 5)
 })
+
+test_that("the separation projection fits positive outcomes exactly", {
+  a <- rep(1:6, 10)
+  b <- rep(1:10, each = 6)
+  x <- matrix(sin(seq_along(a)))
+  boundary <- seq_along(a) %% 3 != 0
+  u <- as.numeric(boundary)
+  design <- cbind(stats::model.matrix(~ factor(a) + factor(b)), x)
+  constraint <- qr(t(design[!boundary, ]))
+  free <- design[boundary, ] %*% qr.Q(constraint, complete = TRUE)[, -seq_len(constraint$rank)]
+  exact <- numeric(length(u))
+  exact[boundary] <- qr.resid(qr(free), u[boundary])
+  expect_equal(projection(x, list(a, b), boundary)(u), exact, tolerance = 1e-8)
+})

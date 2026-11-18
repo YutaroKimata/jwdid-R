@@ -20,30 +20,41 @@ jw_separation <- function(d, design) {
 
 relu_separation <- function(d, design, groups) {
   boundary <- d$.jw_y == 0
-  w <- ifelse(boundary, 1, ceiling(.Machine$double.eps^(-0.5)))
-  # Cells stay regressors: absorbing them as fixed effects under these weights stalls.
+  # Cells stay regressors: absorbing them as fixed effects stalls the projection.
   x <- suppressWarnings(as.matrix(jw_design_matrix(d, design$columns, design)))
-  relu_iterate(boundary, projection(x, groups, w))
+  relu_iterate(boundary, projection(x, groups, boundary))
 }
 
-# Weighted least-squares residual of `u` on the fixed effects and regressors.
-projection <- function(x, groups, w) {
+# Least-squares residual of `u` on the fixed effects and regressors, with the
+# fit held at `u` where y > 0 by feeding the violation back into the target.
+projection <- function(x, groups, boundary, weight = 100, tol = 1e-8, maxiter = 1000L) {
   for (j in seq_len(ncol(x))) {
     scale <- sqrt(sum(x[, j]^2))
     if (scale > 0) x[, j] <- x[, j] / scale
   }
+  w <- ifelse(boundary, 1, weight)
   root <- sqrt(w)
   absorb <- function(v) {
     fixest::demean(v, f = groups, weights = w, tol = 1e-12, iter = 10000L, as.matrix = TRUE, notes = FALSE)
   }
   basis <- if (ncol(x)) qr(absorb(x) * root, tol = 1e-10)
-  function(u) {
-    r <- drop(absorb(matrix(u)))
+  residual <- function(target) {
+    r <- drop(absorb(matrix(target)))
     if (is.null(basis)) r else qr.resid(basis, r * root) / root
+  }
+  function(u) {
+    target <- u
+    for (iter in seq_len(maxiter)) {
+      fit <- target - residual(target)
+      gap <- u[!boundary] - fit[!boundary]
+      if (max(abs(gap), 0) < tol) return(u - fit)
+      target[!boundary] <- target[!boundary] + gap
+    }
+    stop("Constrained least squares in the separation check did not converge; no result returned.")
   }
 }
 
-relu_iterate <- function(boundary, project, tol = 1e-4, maxiter = 100L) {
+relu_iterate <- function(boundary, project, tol = 1e-4, maxiter = 1000L) {
   u <- as.numeric(boundary)
   delta <- tol + max(sum(u^2) / ceiling(.Machine$double.eps^(-0.5)), 1e-8)
   for (iter in seq_len(maxiter)) {
