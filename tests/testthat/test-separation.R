@@ -32,5 +32,5 @@ test_that("the separation projection fits positive outcomes exactly", {
   free <- design[boundary, ] %*% qr.Q(constraint, complete = TRUE)[, -seq_len(constraint$rank)]
   exact <- numeric(length(u))
   exact[boundary] <- qr.resid(qr(free), u[boundary])
-  expect_equal(projection(x, list(a, b), boundary)(u), exact, tolerance = 1e-8)
+  expect_equal(projection(x, list(a, b), boundary)(u, 1e-12), exact, tolerance = 1e-8)
 })

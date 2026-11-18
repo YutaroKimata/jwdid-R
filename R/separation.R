@@ -27,7 +27,7 @@ relu_separation <- function(d, design, groups) {
 
 # Least-squares residual of `u` on the fixed effects and regressors, with the
 # fit held at `u` where y > 0 by feeding the violation back into the target.
-projection <- function(x, groups, boundary, weight = 100, tol = 1e-8, maxiter = 1000L) {
+projection <- function(x, groups, boundary, weight = 100, maxiter = 1000L) {
   for (j in seq_len(ncol(x))) {
     scale <- sqrt(sum(x[, j]^2))
     if (scale > 0) x[, j] <- x[, j] / scale
@@ -42,7 +42,7 @@ projection <- function(x, groups, boundary, weight = 100, tol = 1e-8, maxiter = 
     r <- drop(absorb(matrix(target)))
     if (is.null(basis)) r else qr.resid(basis, r * root) / root
   }
-  function(u) {
+  function(u, tol) {
     target <- u
     for (iter in seq_len(maxiter)) {
       fit <- target - residual(target)
@@ -58,7 +58,7 @@ relu_iterate <- function(boundary, project, tol = 1e-4, maxiter = 1000L) {
   u <- as.numeric(boundary)
   delta <- tol + max(sum(u^2) / ceiling(.Machine$double.eps^(-0.5)), 1e-8)
   for (iter in seq_len(maxiter)) {
-    residual <- project(u)
+    residual <- project(u, 0.1 * delta)
     z <- u - residual
     if (max(abs(z[!boundary])) > delta) {
       stop("ReLU equality constraints failed; separation was not certified.")
