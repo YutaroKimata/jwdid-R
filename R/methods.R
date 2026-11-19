@@ -2,16 +2,13 @@
 coef.jwdid <- function(object, ...) object$coefficients
 
 #' @exportS3Method stats::vcov
-vcov.jwdid <- function(object, ...) {
-  k <- length(object$coefficients)
-  object$vcov[seq_len(k), seq_len(k), drop = FALSE]
-}
+vcov.jwdid <- function(object, ...) object$vcov
 
 #' @exportS3Method stats::nobs
 nobs.jwdid <- function(object, ...) nrow(object$data)
 
 #' @exportS3Method stats::fitted
-fitted.jwdid <- function(object, ...) object$data$.jw_mu
+fitted.jwdid <- function(object, ...) stats::fitted(object$fixest)
 
 #' @export
 print.jwdid <- function(x, ...) {

@@ -41,8 +41,8 @@ plot(es)
 ```
 
 `estat()` averages effects over treated observations overall, by cohort,
-period, event time or cohort-period, on the log scale (`predict = "xb"`) or in
-outcome units (`predict = "mu"`), with clustered delta-method standard errors.
+period, event time or cohort-period, on the log scale, with clustered
+delta-method standard errors.
 
 See `?jwdid` and `?estat` for additional options.
 

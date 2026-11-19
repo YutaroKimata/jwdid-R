@@ -19,7 +19,6 @@ jwdid(
   weights = NULL,
   offset = NULL,
   cluster = NULL,
-  se = c("standard", "corrected"),
   ...
 )
 }
@@ -63,10 +62,6 @@ formula.}
 
 \item{cluster}{One-sided clustering formula, such as
 \code{~ exporter + importer}. Defaults to the unit identifier.}
-
-\item{se}{Standard errors: the clustered sandwich (\code{standard}), or the
-sandwich with each unit's residuals corrected for their leverage
-(\code{corrected}), which requires clustering by the unit identifier.}
 
 \item{...}{Further arguments to \code{\link[fixest:feglm]{fixest::fepois()}}, such as \code{glm.tol}.}
 }

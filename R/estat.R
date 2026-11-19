@@ -1,15 +1,13 @@
 #' Aggregate treatment effects
 #'
-#' Averages counterfactual prediction differences from a [jwdid()] fit over
-#' observations and computes clustered delta-method standard errors.
+#' Averages log ratios of counterfactual conditional means from a [jwdid()]
+#' fit over observations and computes clustered delta-method standard errors.
 #'
 #' @param object A [jwdid()] fit.
 #' @param type Aggregate post-baseline effects overall (`simple`), by cohort
 #'   (`group`) or by period (`calendar`); aggregate by event time (`event`) or
 #'   cohort-period (`attgt`); or pool all treated-cohort observations (`any`).
 #'   Event aggregation includes pre-treatment effects when `never = TRUE`.
-#' @param predict Scale of the effects: log ratios of conditional means (`xb`)
-#'   or differences in outcome units (`mu`).
 #' @param weights Nonnegative aggregation weights, as a vector aligned with the
 #'   estimation data, a column name or a one-sided formula. Rows with zero
 #'   weight are left out. Defaults to the estimation weights.
@@ -26,11 +24,10 @@
 #'   effects before the baseline are zero.
 #'
 #' @details
-#' Each effect compares predictions with the treatment indicator at zero and at
-#' one, holding covariates, offsets and fixed effects at their values. Group and
-#' calendar aggregation leave out units with no period before their cohort in
-#' the estimation sample. The pretrend test covers event times before the
-#' baseline.
+#' Each effect compares linear predictions with the treatment indicator at zero
+#' and at one, holding covariates at their values. Group and calendar
+#' aggregation leave out units with no period before their cohort in the
+#' estimation sample. The pretrend test covers event times before the baseline.
 #'
 #' @return A data frame of class `jwdid_estat` with the grouping columns,
 #'   `estimate`, `std.error`, `statistic`, `p.value`, `conf.low`, `conf.high`,
@@ -46,10 +43,9 @@
 #' estat(fit, "event", window = c(-2, 3))
 #' @export
 estat <- function(object, type = c("simple", "group", "calendar", "event", "attgt", "any"),
-                  predict = c("xb", "mu"), weights = NULL, subset = NULL, over = NULL,
+                  weights = NULL, subset = NULL, over = NULL,
                   window = NULL, cwindow = NULL, asis = FALSE, level = 0.95, pretrend = FALSE) {
   type <- match.arg(type)
-  predict <- match.arg(predict)
   if (!inherits(object, "jwdid")) stop("object must be a jwdid fit.")
   if (length(level) != 1L || !(level > 0 && level < 1)) stop("level must lie in (0, 1).")
   if (!is.null(window) && !is.null(cwindow)) stop("Use either window or cwindow.")
@@ -93,13 +89,11 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
     dims = c(nlevels(group), length(group))
   )
 
-  effects <- unit_effects(object, d, target = if (asis) d$.jw_tr else 1, predict)
-  gradient <- cbind(
-    as.matrix(average %*% effects$gradient),
-    `_cons` = as.vector(average %*% effects$intercept)
-  )
-  dimnames(gradient) <- list(levels(group), rownames(object$vcov))
-  estimate <- as.vector(average %*% effects$effect)
+  b <- object$coefficients
+  treatment <- jw_columns(d, names(b), object$design, "treatment")
+  gradient <- as.matrix(average %*% ((if (asis) d$.jw_tr else 1) * treatment))
+  dimnames(gradient) <- list(levels(group), names(b))
+  estimate <- drop(gradient %*% b)
   covariance <- gradient %*% object$vcov %*% t(gradient)
   se <- sqrt(pmax(diag(covariance), 0))
   critical <- stats::qnorm((1 + level) / 2)
@@ -117,7 +111,6 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
   attr(out, "vcov") <- covariance
   attr(out, "gradient") <- gradient
   attr(out, "type") <- type
-  attr(out, "predict") <- predict
   if (pretrend) attr(out, "pretrend") <- pretrend_test(out, covariance, -object$gap * object$anticipation)
   class(out) <- c("jwdid_estat", "data.frame")
   out
@@ -133,25 +126,6 @@ in_scope <- function(d, type, never) {
     event = if (never) treated & d$.jw_tr != 0 else d$.jw_etr,
     attgt = ,
     any = treated
-  )
-}
-
-# Effect of moving the treatment indicator from zero to `target`, per row, with
-# its gradient in the coefficients and in the intercept.
-unit_effects <- function(object, d, target, predict) {
-  b <- object$coefficients
-  treatment <- jw_columns(d, names(b), object$design, "treatment")
-  delta <- as.vector(treatment %*% b)
-  if (predict == "xb") {
-    return(list(effect = target * delta, gradient = target * treatment, intercept = 0 * delta))
-  }
-  untreated <- d$.jw_mu * exp(-d$.jw_tr * delta)
-  treated <- d$.jw_mu * exp((target - d$.jw_tr) * delta)
-  static <- jw_columns(d, names(b), object$design, "static")
-  list(
-    effect = treated - untreated,
-    gradient = (treated - untreated) * static + (target * treated) * treatment,
-    intercept = treated - untreated
   )
 }
 

@@ -16,7 +16,6 @@ Imports:
     fixest (>= 0.14.1),
     graphics,
     Matrix,
-    methods,
     stats,
     utils
 Suggests:

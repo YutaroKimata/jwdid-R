@@ -7,33 +7,25 @@ test_that("aggregates match dense counterfactual calculations", {
   })
   fit <- jwdid(y, id, t, g, cvar = ~ x + x2 + x3, never = TRUE, weights = ~w, offset = ~off, data = d)
   e <- fit$data
-  x <- stats::model.matrix(fit$fixest, data = e)[, names(coef(fit))]
-  q <- fitted(fit) * e$.jw_w
-  xm <- drop(crossprod(x, q)) / sum(q)
-  influence_b <- rowsum(fixest::estfun(fit$fixest), e$.jw_id) %*% (fixest::bread(fit$fixest) / nobs(fit))
-  influence_c <- rowsum(stats::residuals(fit$fixest, type = "response") * e$.jw_w, e$.jw_id) / sum(q) -
-    influence_b %*% xm
-  clusters <- nrow(influence_b)
-  joint <- crossprod(cbind(influence_b, influence_c)) * clusters / (clusters - 1)
+  influence <- rowsum(fixest::estfun(fit$fixest), e$.jw_id) %*% (fixest::bread(fit$fixest) / nobs(fit))
+  clusters <- nrow(influence)
+  covariance <- crossprod(influence) * clusters / (clusters - 1)
 
   keep <- e$.jw_g > 0 & e$.jw_tr != 0 & e$.jw_t >= 2
   event <- pmax(-2, pmin(3, e$.jw_t - e$.jw_g))
   over <- e$.jw_t %% 2
   weights <- 1 + abs(e$.jw_x1)
-  for (scale in c("xb", "mu")) {
-    result <- estat(fit, "event", predict = scale, weights = weights,
-      subset = ~ .jw_t >= 2, over = over, cwindow = c(-2, 3))
-    unit <- dense_effects(fit, scale)
-    groups <- lapply(seq_len(nrow(result)), function(i) {
-      which(keep & event == result$event[i] & over == result$over[i])
-    })
-    expected <- t(vapply(groups, function(i) colSums(unit$gradient[i, , drop = FALSE] * weights[i]) / sum(weights[i]),
-      numeric(ncol(unit$gradient))))
-    expect_equal(unname(attr(result, "gradient")), unname(expected), tolerance = 1e-10)
-    expect_equal(result$estimate, vapply(groups, function(i) stats::weighted.mean(unit$effect[i], weights[i]), 1),
-      tolerance = 1e-10)
-    expect_equal(unname(attr(result, "vcov")), unname(expected %*% joint %*% t(expected)), tolerance = 1e-10)
-  }
+  result <- estat(fit, "event", weights = weights, subset = ~ .jw_t >= 2, over = over, cwindow = c(-2, 3))
+  unit <- dense_effects(fit)
+  groups <- lapply(seq_len(nrow(result)), function(i) {
+    which(keep & event == result$event[i] & over == result$over[i])
+  })
+  expected <- t(vapply(groups, function(i) colSums(unit$gradient[i, , drop = FALSE] * weights[i]) / sum(weights[i]),
+    numeric(ncol(unit$gradient))))
+  expect_equal(unname(attr(result, "gradient")), unname(expected), tolerance = 1e-10)
+  expect_equal(result$estimate, vapply(groups, function(i) stats::weighted.mean(unit$effect[i], weights[i]), 1),
+    tolerance = 1e-10)
+  expect_equal(unname(attr(result, "vcov")), unname(expected %*% covariance %*% t(expected)), tolerance = 1e-10)
 })
 
 test_that("effects are averaged row by row when a cell mixes treated and control rows", {
@@ -41,12 +33,9 @@ test_that("effects are averaged row by row when a cell mixes treated and control
   e <- fit$data
   expect_true(any(e$.jw_cell != "base" & e$.jw_tr == 0))
   event <- (e$.jw_t - e$.jw_g)[e$.jw_etr]
-  for (scale in c("xb", "mu")) {
-    effect <- dense_effects(fit, scale)$effect[e$.jw_etr]
-    expect_equal(estat(fit, "simple", predict = scale)$estimate, mean(effect), tolerance = 1e-10)
-    expect_equal(estat(fit, "event", predict = scale)$estimate, as.vector(tapply(effect, event, mean)),
-      tolerance = 1e-10)
-  }
+  effect <- dense_effects(fit)$effect[e$.jw_etr]
+  expect_equal(estat(fit, "simple")$estimate, mean(effect), tolerance = 1e-10)
+  expect_equal(estat(fit, "event")$estimate, as.vector(tapply(effect, event, mean)), tolerance = 1e-10)
 })
 
 test_that("group and calendar effects leave out units without a pre-treatment period", {
@@ -71,10 +60,8 @@ test_that("event and overall effects recover the true log effects", {
 
 test_that("the baseline is a zero effect and the pretrend test is defined", {
   fit <- jwdid(y, id, t, g, cvar = ~x, never = TRUE, data = panel)
-  for (scale in c("xb", "mu")) {
-    baseline <- estat(fit, "event", predict = scale, window = c(-1, -1))
-    expect_true(all(baseline$estimate == 0 & baseline$std.error == 0))
-  }
+  baseline <- estat(fit, "event", window = c(-1, -1))
+  expect_true(all(baseline$estimate == 0 & baseline$std.error == 0))
   test <- attr(estat(fit, "event", pretrend = TRUE), "pretrend")
   expect_equal(test$df, 5)
   expect_true(test$p.value > 0 && test$p.value < 1)
@@ -91,29 +78,4 @@ test_that("tables print compactly and plot", {
     result <- estat(fit, type)
     expect_identical(plot(result), result)
   }
-})
-
-test_that("corrected standard errors scale unit residuals by their leverage", {
-  fit <- jwdid(trade, exporter^importer, year, first_year, fevar = ~ exporter^year + importer^year,
-    never = TRUE, data = gravity)
-  corrected <- jwdid(trade, exporter^importer, year, first_year, fevar = ~ exporter^year + importer^year,
-    never = TRUE, data = gravity, se = "corrected")
-  expect_equal(coef(corrected), coef(fit))
-  expect_true(all(diag(vcov(corrected)) > diag(vcov(fit))))
-
-  d <- fit$data
-  lambda <- fitted(fit) * d$.jw_w
-  unit <- fixest::to_integer(d$.jw_id)
-  pinv <- function(a) with(svd(a), v[, d > max(d) * 1e-10] %*% (t(u[, d > max(d) * 1e-10]) / d[d > max(d) * 1e-10]))
-  project <- function(a) a %*% pinv(crossprod(a, a * lambda)) %*% t(a * lambda)
-  x <- jw_design_matrix(d, names(coef(fit)), fit$design)
-  z <- cbind(as.matrix(x), stats::model.matrix(~ factor(.jw_t) + factor(.jw_fe1) + factor(.jw_fe2) - 1, d))
-  z <- z - project(stats::model.matrix(~ factor(unit) - 1)) %*% z
-  hat <- (lambda * z) %*% pinv(crossprod(z, z * lambda)) %*% t(z)
-  e <- stats::residuals(fit$fixest, type = "response")
-  expected <- numeric(length(e))
-  for (g in split(seq_along(unit), unit)) expected[g] <- pinv(diag(length(g)) - hat[g, g]) %*% e[g]
-  expect_equal(leverage_residuals(fit$fixest, d, x)$residual, expected, tolerance = 1e-8)
-  expect_error(jwdid(trade, exporter^importer, year, first_year, never = TRUE, data = gravity,
-    cluster = ~exporter, se = "corrected"), "unit identifier")
 })

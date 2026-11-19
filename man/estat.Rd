@@ -7,7 +7,6 @@
 estat(
   object,
   type = c("simple", "group", "calendar", "event", "attgt", "any"),
-  predict = c("xb", "mu"),
   weights = NULL,
   subset = NULL,
   over = NULL,
@@ -25,9 +24,6 @@ estat(
 (\code{group}) or by period (\code{calendar}); aggregate by event time (\code{event}) or
 cohort-period (\code{attgt}); or pool all treated-cohort observations (\code{any}).
 Event aggregation includes pre-treatment effects when \code{never = TRUE}.}
-
-\item{predict}{Scale of the effects: log ratios of conditional means (\code{xb})
-or differences in outcome units (\code{mu}).}
 
 \item{weights}{Nonnegative aggregation weights, as a vector aligned with the
 estimation data, a column name or a one-sided formula. Rows with zero
@@ -58,15 +54,14 @@ A data frame of class \code{jwdid_estat} with the grouping columns,
 gradient (\code{gradient}) and, if requested, the joint test (\code{pretrend}).
 }
 \description{
-Averages counterfactual prediction differences from a \code{\link[=jwdid]{jwdid()}} fit over
-observations and computes clustered delta-method standard errors.
+Averages log ratios of counterfactual conditional means from a \code{\link[=jwdid]{jwdid()}}
+fit over observations and computes clustered delta-method standard errors.
 }
 \details{
-Each effect compares predictions with the treatment indicator at zero and at
-one, holding covariates, offsets and fixed effects at their values. Group and
-calendar aggregation leave out units with no period before their cohort in
-the estimation sample. The pretrend test covers event times before the
-baseline.
+Each effect compares linear predictions with the treatment indicator at zero
+and at one, holding covariates at their values. Group and calendar
+aggregation leave out units with no period before their cohort in the
+estimation sample. The pretrend test covers event times before the baseline.
 }
 \examples{
 fit <- jwdid(trade, ivar = exporter^importer, tvar = year, gvar = first_year,
