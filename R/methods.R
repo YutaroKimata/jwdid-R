@@ -17,8 +17,7 @@ print.jwdid <- function(x, ...) {
     "Observations: %d   Clusters: %d   Treatment cells: %d   Separated: %d\n",
     stats::nobs(x), length(unique(x$data$.jw_cl1)), nlevels(x$data$.jw_cell) - 1L, length(x$separated)
   ))
-  cat(sprintf("Controls: %s   Heterogeneity: %s\n",
-    if (x$never) "never treated" else "not yet treated", x$hettype))
+  cat(sprintf("Controls: %s\n", if (x$never) "never treated" else "not yet treated"))
   cat("Use estat() for aggregated effects and summary() for coefficients.\n")
   invisible(x)
 }

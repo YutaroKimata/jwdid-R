@@ -11,7 +11,7 @@ test_that("aggregates match dense counterfactual calculations", {
   clusters <- nrow(influence)
   covariance <- crossprod(influence) * clusters / (clusters - 1)
 
-  keep <- e$.jw_g > 0 & e$.jw_tr != 0 & e$.jw_t >= 2
+  keep <- e$.jw_g > 0 & e$.jw_t >= 2
   event <- pmax(-2, pmin(3, e$.jw_t - e$.jw_g))
   over <- e$.jw_t %% 2
   weights <- 1 + abs(e$.jw_x1)
@@ -26,16 +26,6 @@ test_that("aggregates match dense counterfactual calculations", {
   expect_equal(result$estimate, vapply(groups, function(i) stats::weighted.mean(unit$effect[i], weights[i]), 1),
     tolerance = 1e-10)
   expect_equal(unname(attr(result, "vcov")), unname(expected %*% covariance %*% t(expected)), tolerance = 1e-10)
-})
-
-test_that("effects are averaged row by row when a cell mixes treated and control rows", {
-  fit <- jwdid(y, id, t, g, hettype = "time", anticipation = 2L, data = within(panel, g[g == 0] <- 8))
-  e <- fit$data
-  expect_true(any(e$.jw_cell != "base" & e$.jw_tr == 0))
-  event <- (e$.jw_t - e$.jw_g)[e$.jw_etr]
-  effect <- dense_effects(fit)$effect[e$.jw_etr]
-  expect_equal(estat(fit, "simple")$estimate, mean(effect), tolerance = 1e-10)
-  expect_equal(estat(fit, "event")$estimate, as.vector(tapply(effect, event, mean)), tolerance = 1e-10)
 })
 
 test_that("group and calendar effects leave out units without a pre-treatment period", {

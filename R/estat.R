@@ -17,17 +17,16 @@
 #' @param window Event-time range `c(lower, upper)` to keep, in time units.
 #' @param cwindow Event-time range `c(lower, upper)` whose tails are collapsed
 #'   into the endpoints. Use either `window` or `cwindow`.
-#' @param asis Use the observed treatment indicator, instead of one, for the
-#'   treated prediction.
 #' @param level Confidence level.
 #' @param pretrend For event aggregation with `never = TRUE`, test jointly that
 #'   effects before the baseline are zero.
 #'
 #' @details
-#' Each effect compares linear predictions with the treatment indicator at zero
-#' and at one, holding covariates at their values. Group and calendar
-#' aggregation leave out units with no period before their cohort in the
-#' estimation sample. The pretrend test covers event times before the baseline.
+#' Each effect is the change in the linear predictor from removing the
+#' observation's treatment cell, holding covariates at their values. Group and
+#' calendar aggregation leave out units with no period before their cohort in
+#' the estimation sample. The pretrend test covers event times before the
+#' baseline.
 #'
 #' @return A data frame of class `jwdid_estat` with the grouping columns,
 #'   `estimate`, `std.error`, `statistic`, `p.value`, `conf.low`, `conf.high`,
@@ -44,7 +43,7 @@
 #' @export
 estat <- function(object, type = c("simple", "group", "calendar", "event", "attgt", "any"),
                   weights = NULL, subset = NULL, over = NULL,
-                  window = NULL, cwindow = NULL, asis = FALSE, level = 0.95, pretrend = FALSE) {
+                  window = NULL, cwindow = NULL, level = 0.95, pretrend = FALSE) {
   type <- match.arg(type)
   if (!inherits(object, "jwdid")) stop("object must be a jwdid fit.")
   if (length(level) != 1L || !(level > 0 && level < 1)) stop("level must lie in (0, 1).")
@@ -61,7 +60,7 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
   w <- column(weights, d, d$.jw_w)
   if (any(!is.finite(w) | w < 0)) stop("Aggregation weights must be finite and nonnegative.")
   rows <- column(subset, d, rep(TRUE, nrow(d)))
-  rows <- !is.na(rows) & rows & w > 0 & in_scope(d, type, object$never)
+  rows <- !is.na(rows) & rows & w > 0 & in_scope(d, type, object$never, object$gmax)
   event <- d$.jw_t - d$.jw_g
   if (!is.null(window)) rows <- rows & event >= window[1L] & event <= window[2L]
   if (!is.null(cwindow)) event <- pmin(pmax(event, cwindow[1L]), cwindow[2L])
@@ -91,7 +90,7 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
 
   b <- object$coefficients
   treatment <- jw_columns(d, names(b), object$design, "treatment")
-  gradient <- as.matrix(average %*% ((if (asis) d$.jw_tr else 1) * treatment))
+  gradient <- as.matrix(average %*% treatment)
   dimnames(gradient) <- list(levels(group), names(b))
   estimate <- drop(gradient %*% b)
   covariance <- gradient %*% object$vcov %*% t(gradient)
@@ -117,13 +116,13 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
 }
 
 # Rows each aggregation averages over.
-in_scope <- function(d, type, never) {
+in_scope <- function(d, type, never, gmax) {
   treated <- d$.jw_g > 0
   switch(type,
     simple = d$.jw_etr,
     group = ,
     calendar = d$.jw_etr & d$.jw_first < d$.jw_g,
-    event = if (never) treated & d$.jw_tr != 0 else d$.jw_etr,
+    event = if (never) treated & d$.jw_g < gmax else d$.jw_etr,
     attgt = ,
     any = treated
   )

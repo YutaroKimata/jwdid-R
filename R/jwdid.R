@@ -1,8 +1,8 @@
 #' Staggered difference-in-differences with PPML
 #'
 #' Estimates extended two-way fixed effects difference-in-differences models
-#' by Poisson pseudo-maximum likelihood. Treatment cells are built from each
-#' unit's first treatment period and estimated with [fixest::fepois()].
+#' by Poisson pseudo-maximum likelihood, with a separate effect for each
+#' cohort-period cell, estimated with [fixest::fepois()].
 #'
 #' @param yvar Nonnegative outcome, as a column name, string or expression.
 #' @param ivar Unit identifier, as a column name or string. Combined
@@ -17,10 +17,6 @@
 #'   effects. Otherwise not-yet-treated observations serve as controls.
 #' @param anticipation Positive integer: the baseline lies this many period
 #'   steps before treatment.
-#' @param hettype Treatment-effect heterogeneity: a separate effect for each
-#'   cohort-period cell (`timecohort`), by period and pre/post status (`time`),
-#'   by cohort and pre/post status (`cohort`), by time relative to treatment
-#'   (`event`), or a single pre and post effect (`twfe`).
 #' @param data A data frame.
 #' @param subset Logical vector, column name or one-sided formula selecting
 #'   rows of `data`.
@@ -56,11 +52,8 @@
 #' estat(fit)
 #' @export
 jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
-                  never = FALSE, anticipation = 1L,
-                  hettype = c("timecohort", "time", "cohort", "event", "twfe"),
-                  data, subset = NULL, weights = NULL, offset = NULL,
-                  cluster = NULL, ...) {
-  hettype <- match.arg(hettype)
+                  never = FALSE, anticipation = 1L, data, subset = NULL,
+                  weights = NULL, offset = NULL, cluster = NULL, ...) {
   if (!is.numeric(anticipation) || length(anticipation) != 1L || is.na(anticipation) ||
     anticipation < 1 || anticipation != round(anticipation)) {
     stop("anticipation must be a positive integer.")
@@ -74,10 +67,10 @@ jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
   timing <- jw_timing(d$.jw_id, d$.jw_t, d$.jw_g, anticipation)
   d <- d[timing$keep, , drop = FALSE]
   if (any(d$.jw_y < 0)) stop("PPML requires nonnegative outcomes.")
-  cells <- jw_cells(d$.jw_t, d$.jw_g, timing$gap, timing$gmax, anticipation, never, hettype)
+  cells <- jw_cells(d$.jw_t, d$.jw_g, timing$gap, timing$gmax, anticipation, never)
   d[names(cells)] <- cells
   if (nlevels(d$.jw_cell) < 2L) stop("No identified treatment cells.")
-  d <- jw_covariates(d, cvar, hettype, timing$gap)
+  d <- jw_covariates(d, cvar)
   design <- jw_design(d, timing$gmax)
 
   later <- grep("^\\.jw_(fe|cl)[0-9]+$|^\\.jw_off$", names(d), value = TRUE)
@@ -93,8 +86,8 @@ jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
   structure(
     list(
       coefficients = stats::coef(fit), vcov = jw_vcov(fit, d, design), fixest = fit,
-      data = d, design = design, never = never, hettype = hettype,
-      gap = timing$gap, anticipation = anticipation, separated = dropped,
+      data = d, design = design, never = never,
+      gap = timing$gap, gmax = timing$gmax, anticipation = anticipation, separated = dropped,
       call = match.call()
     ),
     class = "jwdid"

@@ -12,7 +12,6 @@ estat(
   over = NULL,
   window = NULL,
   cwindow = NULL,
-  asis = FALSE,
   level = 0.95,
   pretrend = FALSE
 )
@@ -39,9 +38,6 @@ rows of the estimation data.}
 \item{cwindow}{Event-time range \code{c(lower, upper)} whose tails are collapsed
 into the endpoints. Use either \code{window} or \code{cwindow}.}
 
-\item{asis}{Use the observed treatment indicator, instead of one, for the
-treated prediction.}
-
 \item{level}{Confidence level.}
 
 \item{pretrend}{For event aggregation with \code{never = TRUE}, test jointly that
@@ -58,10 +54,11 @@ Averages log ratios of counterfactual conditional means from a \code{\link[=jwdi
 fit over observations and computes clustered delta-method standard errors.
 }
 \details{
-Each effect compares linear predictions with the treatment indicator at zero
-and at one, holding covariates at their values. Group and calendar
-aggregation leave out units with no period before their cohort in the
-estimation sample. The pretrend test covers event times before the baseline.
+Each effect is the change in the linear predictor from removing the
+observation's treatment cell, holding covariates at their values. Group and
+calendar aggregation leave out units with no period before their cohort in
+the estimation sample. The pretrend test covers event times before the
+baseline.
 }
 \examples{
 fit <- jwdid(trade, ivar = exporter^importer, tvar = year, gvar = first_year,

@@ -1,25 +1,16 @@
-# Regressors: treatment cells times the treatment indicator, alone and with
-# centered covariates, plus covariates by period and, if they vary within
-# units, by cohort. One description serves the estimation formula and the
-# sparse design matrices used for separation, variances and aggregation.
+# Regressors: treatment cells, alone and interacted with centered covariates,
+# plus covariates by period and, if they vary within units, by cohort. One
+# description serves the estimation formula and the sparse design matrices used
+# for separation, variances and aggregation.
 
-jw_covariates <- function(d, cvar, hettype, gap) {
+jw_covariates <- function(d, cvar) {
   if (is.null(cvar)) return(d)
   x <- stats::model.matrix(cvar, d)
   x <- x[, colnames(x) != "(Intercept)", drop = FALSE]
-  g <- d$.jw_g
-  t <- d$.jw_t
-  phase <- d$.jw_phase
-  # The centering groups change how cell coefficients are reported, not the fit.
-  centers <- switch(hettype,
-    timecohort = fixest::to_integer(g, t),
-    time = fixest::to_integer(t, phase),
-    cohort = fixest::to_integer(g, phase),
-    event = ifelse(g > 0, t - g, -gap),
-    twfe = phase
-  )
+  # Centering within cohort-period groups changes how cell coefficients are
+  # reported, not the fit.
   centered <- fixest::demean(x,
-    f = list(centers), weights = d$.jw_w,
+    f = list(fixest::to_integer(d$.jw_g, d$.jw_t)), weights = d$.jw_w,
     tol = 1e-10, iter = 10000L, as.matrix = TRUE, notes = FALSE
   )
   for (j in seq_len(ncol(x))) {
@@ -39,13 +30,12 @@ jw_design <- function(d, gmax) {
   tmin <- min(d$.jw_t)
   gmin <- min(d$.jw_g)
 
-  cell <- "i(.jw_cell, .jw_tr, ref = 'base')"
-  cells <- paste0(".jw_cell::", levels(d$.jw_cell)[-1L], ":.jw_tr")
-  terms <- cell
+  cells <- paste0(".jw_cell::", levels(d$.jw_cell)[-1L])
+  terms <- "i(.jw_cell, ref = 'base')"
   columns <- cells
   for (j in seq_len(k)) {
     x <- paste0(".jw_x", j)
-    terms <- c(terms, paste0(cell, ":.jw_xc", j), x,
+    terms <- c(terms, sprintf("i(.jw_cell, .jw_xc%d, ref = 'base')", j), x,
       sprintf("i(.jw_t, %s, ref = %s)", x, tmin),
       if (varying[j]) {
         sprintf("i(.jw_g, %s, ref = %s, keep = c(%s))", x, gmin, toString(cohorts))
@@ -66,14 +56,13 @@ jw_design <- function(d, gmax) {
   )
 }
 
-# Sparse columns of the design matrix, aligned with `names`. The treatment part
-# holds the cell columns with the treatment indicator set to one; the full
-# design at treatment `tr` is `static + tr * treatment`.
+# Sparse columns of the design matrix, aligned with `names`: the treatment
+# cells and their covariate interactions, or the remaining covariate terms.
 jw_columns <- function(d, names, design, part = c("treatment", "static")) {
   part <- match.arg(part)
   entries <- if (part == "treatment") {
     rows <- which(d$.jw_cell != "base")
-    cell <- paste0(".jw_cell::", d$.jw_cell[rows], ":.jw_tr")
+    cell <- paste0(".jw_cell::", d$.jw_cell[rows])
     c(
       list(entry(rows, cell, 1)),
       lapply(seq_len(design$covariates), function(j) {
@@ -102,7 +91,7 @@ jw_columns <- function(d, names, design, part = c("treatment", "static")) {
 }
 
 jw_design_matrix <- function(d, names, design) {
-  jw_columns(d, names, design, "static") + d$.jw_tr * jw_columns(d, names, design, "treatment")
+  jw_columns(d, names, design, "static") + jw_columns(d, names, design, "treatment")
 }
 
 entry <- function(i, name, x) list(i = i, name = rep_len(name, length(i)), x = rep_len(x, length(i)))

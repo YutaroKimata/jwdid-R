@@ -12,36 +12,16 @@ jw_timing <- function(id, t, g, anticipation) {
   list(keep = keep, gap = gap, gmax = gmax)
 }
 
-# Treatment indicators and cells. `phase` is 1 before the baseline, 2 from the
-# first anticipated period on and 0 otherwise.
-jw_cells <- function(t, g, gap, gmax, anticipation, never, hettype) {
+# Post-treatment indicator and cohort-period cells.
+jw_cells <- function(t, g, gap, gmax, anticipation, never) {
   lag <- gap * anticipation
   lead <- gap * (anticipation - 1L)
-  phase <- ifelse(g > 0 & t < g - lag, 1L, ifelse(g > 0 & t >= g - lead, 2L, 0L))
-  member <- g > 0 & switch(hettype,
-    timecohort = g < gmax & if (never) t != g - lag else t >= g - lead,
-    cohort = g < gmax & (phase == 2L | never & phase == 1L),
-    event = if (never) t != g - lag else t > g - lag,
-    phase == 2L | never & phase == 1L
-  )
-  side <- ifelse(phase == 1L, "pre", "post")
-  label <- switch(hettype,
-    timecohort = paste0("g", g, "_t", t),
-    time = paste0(side, "_t", t),
-    cohort = paste0("g", g, "_", side),
-    event = paste0("e", t - g),
-    twfe = side
-  )
-  label[!member] <- "base"
+  member <- g > 0 & g < gmax & if (never) t != g - lag else t >= g - lead
+  label <- ifelse(member, paste0("g", g, "_t", t), "base")
   # Cells run by cohort and period, so the estimator drops collinear cells from the end.
-  sequence <- switch(hettype,
-    timecohort = order(g, t), time = order(phase, t), cohort = order(g, phase),
-    event = order(t - g), twfe = order(phase)
-  )
+  cells <- setdiff(unique(label[order(g, t)]), "base")
   list(
-    .jw_tr = as.numeric(g < gmax & (never | g > 0 & t >= g - lag)),
     .jw_etr = g > 0 & t > g - lag,
-    .jw_phase = phase,
-    .jw_cell = factor(label, c("base", setdiff(unique(label[sequence]), "base")))
+    .jw_cell = factor(label, c("base", cells))
   )
 }

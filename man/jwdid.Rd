@@ -13,7 +13,6 @@ jwdid(
   fevar = NULL,
   never = FALSE,
   anticipation = 1L,
-  hettype = c("timecohort", "time", "cohort", "event", "twfe"),
   data,
   subset = NULL,
   weights = NULL,
@@ -44,11 +43,6 @@ effects. Otherwise not-yet-treated observations serve as controls.}
 \item{anticipation}{Positive integer: the baseline lies this many period
 steps before treatment.}
 
-\item{hettype}{Treatment-effect heterogeneity: a separate effect for each
-cohort-period cell (\code{timecohort}), by period and pre/post status (\code{time}),
-by cohort and pre/post status (\code{cohort}), by time relative to treatment
-(\code{event}), or a single pre and post effect (\code{twfe}).}
-
 \item{data}{A data frame.}
 
 \item{subset}{Logical vector, column name or one-sided formula selecting
@@ -72,8 +66,8 @@ An object of class \code{jwdid}, with methods for \code{\link[=coef]{coef()}}, \
 }
 \description{
 Estimates extended two-way fixed effects difference-in-differences models
-by Poisson pseudo-maximum likelihood. Treatment cells are built from each
-unit's first treatment period and estimated with \code{\link[fixest:feglm]{fixest::fepois()}}.
+by Poisson pseudo-maximum likelihood, with a separate effect for each
+cohort-period cell, estimated with \code{\link[fixest:feglm]{fixest::fepois()}}.
 }
 \details{
 Units already treated in their first observed period are dropped. Without
