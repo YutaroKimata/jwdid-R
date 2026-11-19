@@ -49,5 +49,6 @@ test_that("invalid inputs stop with a reason", {
   expect_error(jwdid(y, id, t, g, data = transform(panel, y = -y)), "nonnegative")
   expect_error(jwdid(y, id, t, g, data = transform(panel, g = ifelse(t == 1, 0, g))), "constant")
   expect_error(jwdid(y, id, t, g, weights = ~ -1 + 0 * t, data = panel), "nonnegative")
+  expect_error(jwdid(y, id, t, g, weights = "x", data = panel), "formula")
   expect_error(jwdid(y, id, t, g, anticipation = 0, data = panel), "anticipation")
 })

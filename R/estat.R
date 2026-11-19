@@ -6,14 +6,11 @@
 #' @param object A [jwdid()] fit.
 #' @param type Aggregate post-baseline effects overall (`simple`), by cohort
 #'   (`group`) or by period (`calendar`); aggregate by event time (`event`) or
-#'   cohort-period (`attgt`); or pool all treated-cohort observations (`any`).
+#'   cohort-period (`attgt`).
 #'   Event aggregation includes pre-treatment effects when `never = TRUE`.
-#' @param weights Nonnegative aggregation weights, as a vector aligned with the
-#'   estimation data, a column name or a one-sided formula. Rows with zero
-#'   weight are left out. Defaults to the estimation weights.
-#' @param subset Logical vector, column name or one-sided formula selecting
-#'   rows of the estimation data.
-#' @param over Vector, column name or one-sided formula defining subgroups.
+#' @param subset One-sided formula selecting rows of the estimation data, such
+#'   as `~ year >= 2000`.
+#' @param over One-sided formula defining subgroups.
 #' @param window Event-time range `c(lower, upper)` to keep, in time units.
 #' @param cwindow Event-time range `c(lower, upper)` whose tails are collapsed
 #'   into the endpoints. Use either `window` or `cwindow`.
@@ -41,9 +38,9 @@
 #' attr(es, "pretrend")
 #' estat(fit, "event", window = c(-2, 3))
 #' @export
-estat <- function(object, type = c("simple", "group", "calendar", "event", "attgt", "any"),
-                  weights = NULL, subset = NULL, over = NULL,
-                  window = NULL, cwindow = NULL, level = 0.95, pretrend = FALSE) {
+estat <- function(object, type = c("simple", "group", "calendar", "event", "attgt"),
+                  subset = NULL, over = NULL, window = NULL, cwindow = NULL,
+                  level = 0.95, pretrend = FALSE) {
   type <- match.arg(type)
   if (!inherits(object, "jwdid")) stop("object must be a jwdid fit.")
   if (length(level) != 1L || !(level > 0 && level < 1)) stop("level must lie in (0, 1).")
@@ -57,16 +54,13 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
   }
 
   d <- object$data
-  w <- column(weights, d, d$.jw_w)
-  if (any(!is.finite(w) | w < 0)) stop("Aggregation weights must be finite and nonnegative.")
   rows <- column(subset, d, rep(TRUE, nrow(d)))
-  rows <- !is.na(rows) & rows & w > 0 & in_scope(d, type, object$never, object$gmax)
+  rows <- !is.na(rows) & rows & in_scope(d, type, object$never, object$gmax)
   event <- d$.jw_t - d$.jw_g
   if (!is.null(window)) rows <- rows & event >= window[1L] & event <= window[2L]
   if (!is.null(cwindow)) event <- pmin(pmax(event, cwindow[1L]), cwindow[2L])
   keys <- switch(type,
     simple = data.frame(aggregate = rep("simple", nrow(d))),
-    any = data.frame(aggregate = rep("any", nrow(d))),
     group = data.frame(cohort = d$.jw_g),
     calendar = data.frame(time = d$.jw_t),
     event = data.frame(event = event),
@@ -79,12 +73,11 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
   if (!any(rows)) stop("No observations in the requested aggregation.")
 
   d <- d[rows, , drop = FALSE]
-  w <- w[rows]
   keys <- keys[rows, , drop = FALSE]
   group <- do.call(interaction, c(keys, list(drop = TRUE, lex.order = TRUE)))
-  weight_sum <- as.vector(rowsum(w, group))
+  weight_sum <- as.vector(rowsum(d$.jw_w, group))
   average <- Matrix::sparseMatrix(
-    i = as.integer(group), j = seq_along(group), x = w / weight_sum[group],
+    i = as.integer(group), j = seq_along(group), x = d$.jw_w / weight_sum[group],
     dims = c(nlevels(group), length(group))
   )
 
@@ -117,14 +110,12 @@ estat <- function(object, type = c("simple", "group", "calendar", "event", "attg
 
 # Rows each aggregation averages over.
 in_scope <- function(d, type, never, gmax) {
-  treated <- d$.jw_g > 0
   switch(type,
     simple = d$.jw_etr,
     group = ,
     calendar = d$.jw_etr & d$.jw_first < d$.jw_g,
-    event = if (never) treated & d$.jw_g < gmax else d$.jw_etr,
-    attgt = ,
-    any = treated
+    event = if (never) d$.jw_g > 0 & d$.jw_g < gmax else d$.jw_etr,
+    attgt = d$.jw_g > 0
   )
 }
 

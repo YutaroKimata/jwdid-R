@@ -6,8 +6,7 @@
 \usage{
 estat(
   object,
-  type = c("simple", "group", "calendar", "event", "attgt", "any"),
-  weights = NULL,
+  type = c("simple", "group", "calendar", "event", "attgt"),
   subset = NULL,
   over = NULL,
   window = NULL,
@@ -21,17 +20,13 @@ estat(
 
 \item{type}{Aggregate post-baseline effects overall (\code{simple}), by cohort
 (\code{group}) or by period (\code{calendar}); aggregate by event time (\code{event}) or
-cohort-period (\code{attgt}); or pool all treated-cohort observations (\code{any}).
+cohort-period (\code{attgt}).
 Event aggregation includes pre-treatment effects when \code{never = TRUE}.}
 
-\item{weights}{Nonnegative aggregation weights, as a vector aligned with the
-estimation data, a column name or a one-sided formula. Rows with zero
-weight are left out. Defaults to the estimation weights.}
+\item{subset}{One-sided formula selecting rows of the estimation data, such
+as \code{~ year >= 2000}.}
 
-\item{subset}{Logical vector, column name or one-sided formula selecting
-rows of the estimation data.}
-
-\item{over}{Vector, column name or one-sided formula defining subgroups.}
+\item{over}{One-sided formula defining subgroups.}
 
 \item{window}{Event-time range \code{c(lower, upper)} to keep, in time units.}
 

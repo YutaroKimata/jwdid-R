@@ -13,9 +13,9 @@ test_that("aggregates match dense counterfactual calculations", {
 
   keep <- e$.jw_g > 0 & e$.jw_t >= 2
   event <- pmax(-2, pmin(3, e$.jw_t - e$.jw_g))
-  over <- e$.jw_t %% 2
-  weights <- 1 + abs(e$.jw_x1)
-  result <- estat(fit, "event", weights = weights, subset = ~ .jw_t >= 2, over = over, cwindow = c(-2, 3))
+  over <- e$t %% 2
+  weights <- e$w
+  result <- estat(fit, "event", subset = ~ t >= 2, over = ~ t %% 2, cwindow = c(-2, 3))
   unit <- dense_effects(fit)
   groups <- lapply(seq_len(nrow(result)), function(i) {
     which(keep & event == result$event[i] & over == result$over[i])

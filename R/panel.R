@@ -1,7 +1,7 @@
 # Input handling: one data frame holds the user's columns plus internal `.jw_`
 # columns, so every later subset keeps outcome, weights and groups aligned.
 
-jw_panel <- function(data, roles, cvar, fevar, cluster, subset, weights, offset, env) {
+jw_panel <- function(data, roles, cvar, fevar, cluster, weights, offset, env) {
   d <- as.data.frame(data)
   if (any(startsWith(names(d), ".jw_"))) stop("Column names beginning .jw_ are reserved.")
   d$.jw_row <- seq_len(nrow(d))
@@ -18,8 +18,7 @@ jw_panel <- function(data, roles, cvar, fevar, cluster, subset, weights, offset,
 
   if (any(d$.jw_w < 0, na.rm = TRUE)) stop("Weights must be nonnegative.")
   inputs <- c(".jw_y", ".jw_id", ".jw_t", ".jw_g", if (!is.null(cvar)) all.vars(cvar))
-  keep <- column(subset, d, rep(TRUE, nrow(d)))
-  keep <- !is.na(keep) & keep & stats::complete.cases(d[inputs]) & is.finite(d$.jw_w) & d$.jw_w > 0
+  keep <- stats::complete.cases(d[inputs]) & is.finite(d$.jw_w) & d$.jw_w > 0
   d <- d[keep, , drop = FALSE]
 
   if (!is.numeric(d$.jw_y)) stop("PPML requires a numeric outcome.")
@@ -56,12 +55,12 @@ split_terms <- function(expr) {
   list(expr)
 }
 
-# A vector aligned with `data`, given as a vector, a column name or a one-sided formula.
+# A one-sided formula evaluated in `data`, one value per row.
 column <- function(x, data, default) {
   if (is.null(x)) return(default)
-  if (inherits(x, "formula")) x <- eval(x[[2]], data, environment(x))
-  if (is.character(x) && length(x) == 1L && x %in% names(data)) x <- data[[x]]
-  if (length(x) != nrow(data)) stop("Vectors must have one value per row of data.")
+  if (!inherits(x, "formula") || length(x) != 2L) stop("Use a one-sided formula, such as ~w.")
+  x <- eval(x[[2]], data, environment(x))
+  if (length(x) != nrow(data)) stop("Formulas must give one value per row of data.")
   x
 }
 

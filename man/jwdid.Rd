@@ -14,7 +14,6 @@ jwdid(
   never = FALSE,
   anticipation = 1L,
   data,
-  subset = NULL,
   weights = NULL,
   offset = NULL,
   cluster = NULL,
@@ -45,14 +44,10 @@ steps before treatment.}
 
 \item{data}{A data frame.}
 
-\item{subset}{Logical vector, column name or one-sided formula selecting
-rows of \code{data}.}
+\item{weights}{One-sided formula of nonnegative probability weights, such
+as \code{~w}. Rows with zero weight are dropped.}
 
-\item{weights}{Nonnegative probability weights, as a vector, column name or
-one-sided formula. Rows with zero weight are dropped.}
-
-\item{offset}{Offset in the log mean, as a vector, column name or one-sided
-formula.}
+\item{offset}{One-sided formula of the offset in the log mean.}
 
 \item{cluster}{One-sided clustering formula, such as
 \code{~ exporter + importer}. Defaults to the unit identifier.}

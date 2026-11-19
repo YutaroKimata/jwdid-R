@@ -18,12 +18,9 @@
 #' @param anticipation Positive integer: the baseline lies this many period
 #'   steps before treatment.
 #' @param data A data frame.
-#' @param subset Logical vector, column name or one-sided formula selecting
-#'   rows of `data`.
-#' @param weights Nonnegative probability weights, as a vector, column name or
-#'   one-sided formula. Rows with zero weight are dropped.
-#' @param offset Offset in the log mean, as a vector, column name or one-sided
-#'   formula.
+#' @param weights One-sided formula of nonnegative probability weights, such
+#'   as `~w`. Rows with zero weight are dropped.
+#' @param offset One-sided formula of the offset in the log mean.
 #' @param cluster One-sided clustering formula, such as
 #'   `~ exporter + importer`. Defaults to the unit identifier.
 #' @param ... Further arguments to [fixest::fepois()], such as `glm.tol`.
@@ -52,8 +49,8 @@
 #' estat(fit)
 #' @export
 jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
-                  never = FALSE, anticipation = 1L, data, subset = NULL,
-                  weights = NULL, offset = NULL, cluster = NULL, ...) {
+                  never = FALSE, anticipation = 1L, data, weights = NULL,
+                  offset = NULL, cluster = NULL, ...) {
   if (!is.numeric(anticipation) || length(anticipation) != 1L || is.na(anticipation) ||
     anticipation < 1 || anticipation != round(anticipation)) {
     stop("anticipation must be a positive integer.")
@@ -62,7 +59,7 @@ jwdid <- function(yvar, ivar, tvar, gvar, cvar = NULL, fevar = NULL,
     y = as_expression(substitute(yvar)), id = as_expression(substitute(ivar)),
     t = as_expression(substitute(tvar)), g = as_expression(substitute(gvar))
   )
-  d <- jw_panel(data, roles, cvar, fevar, cluster, subset, weights, offset, parent.frame())
+  d <- jw_panel(data, roles, cvar, fevar, cluster, weights, offset, parent.frame())
 
   timing <- jw_timing(d$.jw_id, d$.jw_t, d$.jw_g, anticipation)
   d <- d[timing$keep, , drop = FALSE]
